@@ -1,0 +1,89 @@
+{
+    // 使用 IntelliSense 了解相关属性。 
+    // 悬停以查看现有属性的描述。
+    // 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: v3",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "cwd": "${fileDirname}",
+            "args": [
+                "--device",
+                "cuda",
+                "--input-source",
+                "v3.mp4",
+                "--capture-time",
+                "1",
+                "3"
+            ]
+        },
+        {
+            "name": "Python: v1",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "cwd": "${fileDirname}",
+            "args": [
+                "--device",
+                "cuda",
+                "--input-source",
+                "v1.mp4",
+                "--capture-time",
+                "1",
+                "3",
+                "--times",
+                "5",
+                "--area-num",
+                "2"
+            ]
+        },
+        {
+            "name": "Python: v4",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "cwd": "${fileDirname}",
+            "args": [
+                "--device",
+                "cuda",
+                "--input-source",
+                "v4.mp4",
+                "--capture-time",
+                "3",
+                "5",
+                "--times",
+                "5",
+                "--area-num",
+                "1"
+            ]
+        },
+        {
+            "name": "Python: v5",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "cwd": "${fileDirname}",
+            "args": [
+                "--device",
+                "cuda",
+                "--input-source",
+                "v5.mp4",
+                "--capture-time",
+                "1",
+                "3",
+                "--times",
+                "5",
+                "--area-num",
+                "1"
+            ]
+        }
+
+    ]
+}
