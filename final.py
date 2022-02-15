@@ -318,7 +318,7 @@ cv2.setMouseCallback('image',draw_rectangle)
 #显示并延时
 while(1):
     cv2.imshow('image',img)
-    if cv2.waitKey(20)&0xFF==27 or a==m:
+    if (cv2.waitKey(20) & 0xFF==13) or a==m:
         break
 #销毁所有窗口
 cv2.destroyAllWindows()
