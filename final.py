@@ -152,6 +152,7 @@ class Converter:
 def img_float32(img):
     return img.copy() if img.dtype != 'uint8' else (img/255.).astype('float32')
 
+# 新的图片合成算法
 def over(bgimg, fgimg):
     if bgimg[0][0].size==3:
         bgimg=cv2.cvtColor(bgimg,cv2.COLOR_BGR2BGRA)
