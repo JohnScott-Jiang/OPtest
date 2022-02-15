@@ -148,13 +148,31 @@ class Converter:
     def convert(self, *args, **kwargs):
         convert_video(self.model, device=self.device, dtype=torch.float32, *args, **kwargs)
     
-def change(mid_img, mid):
-    mid_gray = cv2.cvtColor(mid, cv2.COLOR_BGR2GRAY)
-    ret,mask = cv2.threshold(mid_gray, 10, 255, cv2.THRESH_BINARY)
-    mask_inv = cv2.bitwise_not(mask)
-    mid_img_bg = cv2.bitwise_and(mid_img, mid_img, mask=mask_inv)
-    mid_img = cv2.add(mid_img_bg, mid)
-    return mid_img
+
+def img_float32(img):
+    return img.copy() if img.dtype != 'uint8' else (img/255.).astype('float32')
+
+def over(bgimg, fgimg):
+    if bgimg[0][0].size==3:
+        bgimg=cv2.cvtColor(bgimg,cv2.COLOR_BGR2BGRA)
+    if fgimg[0][0].size==3:
+        fgimg=cv2.cvtColor(bgimg,cv2.COLOR_BGR2BGRA)
+    fgimg, bgimg = img_float32(fgimg),img_float32(bgimg)
+    (fb,fg,fr,fa),(bb,bg,br,ba) = cv2.split(fgimg),cv2.split(bgimg)
+    color_fg, color_bg = cv2.merge((fb,fg,fr)), cv2.merge((bb,bg,br))
+    alpha_fg, alpha_bg = np.expand_dims(fa, axis=-1), np.expand_dims(ba, axis=-1)
+    
+    color_fg[fa==0]=[0,0,0]
+    color_bg[ba==0]=[0,0,0]
+    
+    a = fa + ba * (1-fa)
+    a[a==0]=np.NaN
+    color_over = (color_fg * alpha_fg + color_bg * alpha_bg * (1-alpha_fg)) / np.expand_dims(a, axis=-1)
+    color_over = np.clip(color_over,0,1)
+    color_over[a==0] = [0,0,0]
+    
+    result_float32 = np.append(color_over, np.expand_dims(a, axis=-1), axis = -1)
+    return (result_float32*255).astype('uint8')
 
 # 寻找无效关键点
 def find(kp,img_a,x_b,x_e,y_b,y_e):
@@ -224,50 +242,57 @@ thread1 = myThread()
 thread1.start()
 thread1.join()
 
-cap = cv2.VideoCapture(args.input_source)# 利用VideoCapture捕获视频，这里使用本地视频
-# 创建文件用来保存视频帧
-if os.path.isdir("output"):
-    shutil.rmtree("output")
-    save_path = os.makedirs("output")
-else:
-    save_path = os.makedirs("output")
-imgPath = ""# 截图的图片命名
-f_sum = 0
-while True:
-    ret, frame = cap.read()
-    # 读取视频帧
-    if ret == False:
-        # 判断是否读取成功
-        break
-    imgPath = "output/%s.jpg" % str(f_sum).zfill(4)
-    f_sum += 1
-    # 将提取的视频帧存储进imgPath
-    cv2.imwrite(imgPath, frame)
+class allcapture (threading.Thread):
+    def __init__(self):
+        threading.Thread.__init__(self)
+    def run(self):
+        cap = cv2.VideoCapture(args.input_source)# 利用VideoCapture捕获视频，这里使用本地视频
+        # 创建文件用来保存视频帧
+        if os.path.isdir("output"):
+            shutil.rmtree("output")
+            os.makedirs("output")
+        else:
+            os.makedirs("output")
+        imgPath = ""# 截图的图片命名
+        f_sum = 0
+        while True:
+            ret, frame = cap.read()
+            # 读取视频帧
+            if ret == False:
+                # 判断是否读取成功
+                break
+            imgPath = "output/%s.jpg" % str(f_sum).zfill(4)
+            f_sum += 1
+            # 将提取的视频帧存储进imgPath
+            cv2.imwrite(imgPath, frame)
 
-cap = cv2.VideoCapture(args.input_source)
+        cap = cv2.VideoCapture(args.input_source)
 
-# 创建文件用来保存停留帧
-if os.path.isdir("tupian"):
-    shutil.rmtree("tupian")
-    save_path = os.makedirs("tupian")
-else:
-    save_path = os.makedirs("tupian")
-imgPath = ""# 截图的图片命名
-f_sum = cap.get(7)# 视频帧总数
-rate = cap.get(5)# 视频帧速率
-begin=int(args.capture_time[0]*rate)
-end=int(args.capture_time[1]*rate)
-if begin>f_sum or end>f_sum:
-    print("error, capture-time out of range.")
-elif (end-begin+1)<args.times:
-    print("error, not enough frames in capture-time.")
-else:
-    in_sum=end-begin+1
-    interval=in_sum//args.times
-    for i in range(in_sum-1):
-        if i % interval == 0:
-            shutil.copyfile("output/%s.jpg" % str(begin+i).zfill(4),"tupian/%s.jpg" % str(begin+i).zfill(4))
+        # 创建文件用来保存停留帧
+        if os.path.isdir("tupian"):
+            shutil.rmtree("tupian")
+            os.makedirs("tupian")
+        else:
+            os.makedirs("tupian")
+        imgPath = ""# 截图的图片命名
+        f_sum = cap.get(7)# 视频帧总数
+        rate = cap.get(5)# 视频帧速率
+        begin=int(args.capture_time[0]*rate)
+        end=int(args.capture_time[1]*rate)
+        if begin>f_sum or end>f_sum:
+            print("error, capture-time out of range.")
+        elif (end-begin+1)<args.times:
+            print("error, not enough frames in capture-time.")
+        else:
+            in_sum=end-begin+1
+            interval=in_sum//args.times
+            for i in range(in_sum-1):
+                if i % interval == 0:
+                    shutil.copyfile("output/%s.jpg" % str(begin+i).zfill(4),"tupian/%s.jpg" % str(begin+i).zfill(4))
 
+thread2=allcapture()
+thread2.start()
+thread2.join()
 
 do_path=os.listdir("tupian")
 all_path=os.listdir("output")
@@ -285,6 +310,8 @@ y_b=[0,0]
 y_e=[0,0]
 # 创建图像与窗口并将窗口与回调函数绑定
 img=cv2.imread("output/"+all_path[0])
+y_f = img.shape[0]
+x_f = img.shape[1]
 cv2.namedWindow('image')
 cv2.setMouseCallback('image',draw_rectangle)
 #显示并延时
@@ -297,11 +324,12 @@ cv2.destroyAllWindows()
 
 # 开始合成视频帧
 if os.path.isdir("final"):
-    pass
+    shutil.rmtree("final")
+    os.makedirs("final")
 else:
     os.makedirs("final")
 s=0
-mid_img=np.array([[[0]*3]*1920]*1080,dtype=np.uint8)
+mid_img=np.array([[[0]*4]*1920]*1080,dtype=np.uint8)
 
 for i in range(len(all_path)-1):
     img1_path = "output/"+all_path[i]
@@ -311,89 +339,86 @@ for i in range(len(all_path)-1):
 
     img1 = cv2.imread(img1_path, cv2.IMREAD_GRAYSCALE)
     img2 = cv2.imread(img2_path, cv2.IMREAD_GRAYSCALE)
-    img1_a = cv2.imread(img1_a_path)
-    img2_a = cv2.imread(img2_a_path)
+    img1_a = cv2.imread(img1_a_path,-1)
+    img2_a = cv2.imread(img2_a_path,-1)
 
-    if 10<=i:
-        detector = cv2.ORB_create()
-        matcher = cv2.DescriptorMatcher_create("BruteForce-Hamming")
 
-        # detect keypoints
-        kp1 = detector.detect(img1)
-        kp2 = detector.detect(img2)
-        kp1 = find(kp1,img1_a,x_b,x_e,y_b,y_e)
-        kp2 = find(kp2,img1_a,x_b,x_e,y_b,y_e)
-        print('#keypoints in image1: %d, image2: %d' % (len(kp1), len(kp2)))
+    detector = cv2.ORB_create()
+    matcher = cv2.DescriptorMatcher_create("BruteForce-Hamming")
 
-        # descriptors
-        k1, d1 = detector.compute(img1, kp1)
-        k2, d2 = detector.compute(img2, kp2)
+    # detect keypoints
+    kp1 = detector.detect(img1)
+    kp2 = detector.detect(img2)
+    kp1 = find(kp1,img1_a,x_b,x_e,y_b,y_e)
+    kp2 = find(kp2,img1_a,x_b,x_e,y_b,y_e)
+    print('#keypoints in image1: %d, image2: %d' % (len(kp1), len(kp2)))
 
-        print('#keypoints in image1: %d, image2: %d' % (len(d1), len(d2)))
+    # descriptors
+    k1, d1 = detector.compute(img1, kp1)
+    k2, d2 = detector.compute(img2, kp2)
 
-        # match the keypoints
-        matches = matcher.match(d1, d2)
+    print('#keypoints in image1: %d, image2: %d' % (len(d1), len(d2)))
 
-        # visualize the matches
-        print('#matches:', len(matches))
-        dist = [m.distance for m in matches]
+    # match the keypoints
+    matches = matcher.match(d1, d2)
 
-        print('distance: min: %.3f' % min(dist))
-        print('distance: mean: %.3f' % (sum(dist) / len(dist)))
-        print('distance: max: %.3f' % max(dist))
+    # visualize the matches
+    print('#matches:', len(matches))
+    dist = [m.distance for m in matches]
 
-        # threshold: half the mean
-        thres_dist = (sum(dist) / len(dist)) * 0.5
+    print('distance: min: %.3f' % min(dist))
+    print('distance: mean: %.3f' % (sum(dist) / len(dist)))
+    print('distance: max: %.3f' % max(dist))
 
-        # keep only the reasonable matches
-        sel_matches = [m for m in matches if m.distance < thres_dist]
-        img1 = cv2.imread(img1_path)
-        img2 = cv2.imread(img2_path)
-        if len(sel_matches)==0:
-            mid_img=np.array([[[0]*3]*1920]*1080,dtype=np.uint8)
-            cv2.imwrite('final/'+all_path[i+1],img2)
-            continue
+    # threshold: half the mean
+    thres_dist = (sum(dist) / len(dist)) * 0.5
 
-        pts_src = []
-        pts_dst = []
-        for m in sel_matches:
-            # print m.queryIdx, m.trainIdx, m.distance
-            pts_src.append([int(k1[m.queryIdx].pt[0]), int(k1[m.queryIdx].pt[1])])
-            pts_dst.append([int(k2[m.trainIdx].pt[0]), int(k2[m.trainIdx].pt[1])])
-
-        pts_src = np.array(pts_src)
-        width_dst = 1920
-        height_dst = 1080
-        pts_dst = np.array(pts_dst)
-        x_a=0
-        y_a=0
-        for j in range(len(pts_dst)):
-            x_a+=pts_dst[j][0]-pts_src[j][0]
-            y_a+=pts_dst[j][1]-pts_src[j][1]
-        x_a=x_a/len(pts_dst)
-        y_a=y_a/len(pts_dst)
-        mat_translation=np.float32([[1,0,x_a],[0,1,y_a]])
-
-        # 计算单应性矩阵 这个是重点
-        # h1, status = cv2.findHomography(pts_src, pts_dst)
-
-        if all_path[i] == do_path[s]:
-            mid = img1_a
-            if s<len(do_path)-1:
-                s+=1
-            mid_img=cv2.warpAffine(mid_img,mat_translation,(width_dst, height_dst))[0:img1.shape[0], 0:img1.shape[1], :]
-            # mid_img = cv2.warpPerspective(mid_img, h1, (width_dst, height_dst))[0:img1.shape[0], 0:img1.shape[1], :]
-            mid_img = change(mid_img, mid)
-            img2=change(img2,mid_img)
-            cv2.imwrite('final/'+all_path[i+1],img2)
-        else:
-            mid_img=cv2.warpAffine(mid_img,mat_translation,(width_dst, height_dst))[0:img1.shape[0], 0:img1.shape[1], :]
-            # mid_img = cv2.warpPerspective(mid_img, h1, (width_dst, height_dst))[0:img1.shape[0], 0:img1.shape[1], :]
-            img2=change(img2,mid_img)
-            cv2.imwrite('final/'+all_path[i+1],img2)      
-    else:
-        img2 = cv2.imread(img2_path)
+    # keep only the reasonable matches
+    sel_matches = [m for m in matches if m.distance < thres_dist]
+    img1 = cv2.imread(img1_path)
+    img2 = cv2.imread(img2_path)
+    if len(sel_matches)==0:
+        mid_img=np.array([[[0]*4]*1920]*1080,dtype=np.uint8)
         cv2.imwrite('final/'+all_path[i+1],img2)
+        continue
+
+    pts_src = []
+    pts_dst = []
+    for m in sel_matches:
+        # print m.queryIdx, m.trainIdx, m.distance
+        pts_src.append([int(k1[m.queryIdx].pt[0]), int(k1[m.queryIdx].pt[1])])
+        pts_dst.append([int(k2[m.trainIdx].pt[0]), int(k2[m.trainIdx].pt[1])])
+
+    pts_src = np.array(pts_src)
+    width_dst = 1920
+    height_dst = 1080
+    pts_dst = np.array(pts_dst)
+    x_a=0
+    y_a=0
+    for j in range(len(pts_dst)):
+        x_a+=pts_dst[j][0]-pts_src[j][0]
+        y_a+=pts_dst[j][1]-pts_src[j][1]
+    x_a=x_a/len(pts_dst)
+    y_a=y_a/len(pts_dst)
+    mat_translation=np.float32([[1,0,x_a],[0,1,y_a]])
+
+    # 计算单应性矩阵 这个是重点
+    # h1, status = cv2.findHomography(pts_src, pts_dst)
+
+    if all_path[i] == do_path[s]:
+        mid = img1_a
+        if s<len(do_path)-1:
+            s+=1
+        mid_img=cv2.warpAffine(mid_img,mat_translation,(width_dst, height_dst))[0:img1.shape[0], 0:img1.shape[1], :]
+        # mid_img = cv2.warpPerspective(mid_img, h1, (width_dst, height_dst))[0:img1.shape[0], 0:img1.shape[1], :]
+        mid_img = over(mid_img, mid)
+        img2=over(img2,mid_img)
+        cv2.imwrite('final/'+all_path[i+1],img2)
+    else:
+        mid_img=cv2.warpAffine(mid_img,mat_translation,(width_dst, height_dst))[0:img1.shape[0], 0:img1.shape[1], :]
+        # mid_img = cv2.warpPerspective(mid_img, h1, (width_dst, height_dst))[0:img1.shape[0], 0:img1.shape[1], :]
+        img2=over(img2,mid_img)
+        cv2.imwrite('final/'+all_path[i+1],img2)      
 else:
     # 合成视频
     create.out(args.input_source)
