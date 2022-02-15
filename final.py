@@ -157,7 +157,7 @@ def over(bgimg, fgimg):
     if bgimg[0][0].size==3:
         bgimg=cv2.cvtColor(bgimg,cv2.COLOR_BGR2BGRA)
     if fgimg[0][0].size==3:
-        fgimg=cv2.cvtColor(bgimg,cv2.COLOR_BGR2BGRA)
+        fgimg=cv2.cvtColor(fgimg,cv2.COLOR_BGR2BGRA)
     fgimg, bgimg = img_float32(fgimg),img_float32(bgimg)
     (fb,fg,fr,fa),(bb,bg,br,ba) = cv2.split(fgimg),cv2.split(bgimg)
     color_fg, color_bg = cv2.merge((fb,fg,fr)), cv2.merge((bb,bg,br))
@@ -330,7 +330,7 @@ if os.path.isdir("final"):
 else:
     os.makedirs("final")
 s=0
-mid_img=np.array([[[0]*4]*1920]*1080,dtype=np.uint8)
+mid_img=np.array([[[0]*4]*x_f]*y_f,dtype=np.uint8)
 
 for i in range(len(all_path)-1):
     img1_path = "output/"+all_path[i]
@@ -379,7 +379,7 @@ for i in range(len(all_path)-1):
     img1 = cv2.imread(img1_path)
     img2 = cv2.imread(img2_path)
     if len(sel_matches)==0:
-        mid_img=np.array([[[0]*4]*1920]*1080,dtype=np.uint8)
+        mid_img=np.array([[[0]*4]*x_f]*y_f,dtype=np.uint8)
         cv2.imwrite('final/'+all_path[i+1],img2)
         continue
 
